@@ -1,0 +1,248 @@
+Data processing and visualization
+
+We first import the dataset
+install.packages("ggplot2")
+library(ggplot2)
+customer_data <- read.csv("C:/Users/fefe1/Downloads/Customer_Data.csv")
+str(customer_data)
+
+1. What is the data shape of the dataset? (number of columns /rows)
+
+dim(customer_data)
+
+The shape of the dataset is 8950 rows and 18 columns.
+
+2. Dress the dataset summary? Is there any NaN values? What does it mean?
+
+summary(customer_data)
+
+The summary indicates that there are 1 NA values in the CREDIT_LIMIT column. 
+To verify this, we take a look at the initial dataset. 
+
+
+
+
+
+3. Is there any duplicate values or missing values?
+
+We check for the duplicates with sum(duplicated(customer_data)) that return 0 duplicates finded.
+
+Same for NA, sum(anyNA(customer_data)) returns 1. 
+
+4. Perform a cleaning process on the features Minimum-payments and payments.
+Explain in detail the adopted reasoning behind it.
+
+We are going to clean the features Minimum-payments and payments in the dataset using R. Now that we identified missing values we Fill in missing values using an appropriate imputation methods:
+
+customer_data$PAYMENTS[is.na(customer_data$PAYMENTS)] <- median(customer_data$PAYMENTS, na.rm = TRUE)
+customer_data$MINIMUM_PAYMENTS[is.na(customer_data$MINIMUM_PAYMENTS)] <- mean(customer_data$MINIMUM_PAYMENTS, na.rm = TRUE)
+
+
+rows_with_na <- which(is.na(customer_data$PAYMENTS) | is.na(customer_data$MINIMUM_PAYMENTS))
+print(customer_data[rows_with_na, ])
+
+The missing has not been replaced correctly. So we will to remove rows with any missing values from the dataset : 
+
+cleaned_data <- na.omit(customer_data)
+
+5. Is it necessary to keep the customor_ID? Justify.
+
+In the context of customer segmentation for a credit card company, removing the CUST_ID variable can simplify analysis, reduce bias, and focus attention on meaningful behavioral patterns rather than individual identities.
+
+customer_data <- customer_data[, -which(names(customer_data) == "CUST_ID")]
+
+6. What is the new data shape?
+
+dim(customer_data)
+
+The shape of the dataset is now 8950 rows and 17 columns after removing the CUST_ID column
+
+7. Study the correlations? What are your observations?
+
+correlation_matrix <- cor(cleaned_data)
+correlation_matrix
+
+Positive Correlations:
+
+- PURCHASES correlates moderately positively with ONE_OFF_PURCHASES (0.92) and INSTALLMENTS_PURCHASES (0.68).
+- CASH_ADVANCE has a moderate positive correlation with BALANCE (0.50) and CASH_ADVANCE_TRX (0.66).
+- PURCHASES_FREQUENCY strongly correlates with PURCHASES_INSTALLMENTS_FREQUENCY (0.86).
+
+Negative Correlations:
+
+- CASH_ADVANCE_FREQUENCY is moderately negatively correlated with PURCHASES_FREQUENCY (-0.31).
+Weak Correlations:
+
+
+8. Plot the density according to each feature.
+
+
+par(mfrow=c(4, 5), mar=c(2, 2, 1, 1))  # Adjust margins as needed
+
+for (i in 1:ncol(cleaned_data)) {if (!is.numeric(cleaned_data[, i])) next 
+  
+density_values <- density(cleaned_data[, i], na.rm = TRUE)
+plot(density_values, main = colnames(cleaned_data)[i], xlab = "", ylab = "")
+}
+
+Kmeans clustering
+1. Normalize/standardize the data
+
+if ("CUST_ID" %in% colnames(customer_data)) {
+  customer_data <- customer_data[, -which(names(customer_data) == "CUST_ID")]
+}
+
+normalized_data <- scale(customer_data)
+
+head(normalized_data)
+
+Data appears to be well normalized/standardized. Each column has a mean of approximately 0 and a standard deviation of approximately 1, which indicates that the data has been successfully standardized. 
+
+
+2. Find the number of clusters using the elbow method. Explain the method and comment the results.
+
+
+cleaned_data <- normalized_data[complete.cases(normalized_data), ]
+
+library(FactoMineR)
+library(factoextra)
+
+pca_result <- PCA(cleaned_data, graph = FALSE)
+
+reduced_data <- as.data.frame(pca_result$ind$coord[, 1:5])  # Adjust the number of components as needed
+
+elbow_nb <- fviz_nbclust(reduced_data, kmeans, method = "wss")
+
+print(elbow_nb)
+
+
+So we take the number of cluster k=3 or k=4 are there are at the postion of an elbow.
+
+3. Find the number of clusters using the silhouette method. Explain the method and comment the results.
+
+cleaned_data <- na.omit(customer_data)
+cleaned_data <- cleaned_data[, -which(names(cleaned_data) == "CUST_ID")]
+scaled_data <- scale(cleaned_data)
+
+
+library(cluster)
+library(FactoMineR)  
+library(factoextra)
+
+pca_result <- PCA(scaled_data, graph = FALSE)
+
+reduced_data <- as.data.frame(pca_result$ind$coord[, 1:5])  # Adjust the number of components as needed
+
+silhouette_nb <- fviz_nbclust(reduced_data, kmeans, method = "silhouette")
+
+print(silhouette_nb)
+
+
+Using the silhouette method we can guess the better number of cluster is the first one 
+
+4. Perform the kmeans with k=3. Plot the obtained clusters with the features of customers.
+
+library(cluster)
+library(FactoMineR)
+library(factoextra)
+
+pca_result <- PCA(cleaned_data, graph = FALSE)
+
+reduced_data <- as.data.frame(pca_result$ind$coord[, 1:5])  # Adjust the number of components as needed
+
+kmeans_res <- kmeans(reduced_data, centers = 3, nstart = 25)
+
+fviz_cluster(kmeans_res, data = reduced_data, geom = "point", stand = FALSE,
+             ellipse.type = "convex", ellipse.level = 0.68,
+             main = "Clusters of Customers")
+
+
+5. Which distance you used in the kmeans clustering?
+
+In the previous code, the default distance measure used in the kmeans clustering function is the Euclidean distance. 
+
+6. Define the features of each cluster
+
+cluster_means <- tapply(cleaned_data, km_res$cluster, FUN = colMeans)
+
+cluster_means_df <- as.data.frame(cluster_means)
+
+cluster_means_df
+
+Cluster 1:
+
+Average feature 1: 3955.85
+Average feature 2: 0.961
+Average feature 3: 363.45
+Average feature 4: 234.42
+Average feature 5: 129.08
+...
+This cluster has relatively high values for feature 1, moderate values for feature 3, and low values for features 5 and 15. It also has high values for features 6 and 13.
+Cluster 2:
+
+Average feature 1: 2297.49
+Average feature 2: 0.982
+Average feature 3: 4439.27
+Average feature 4: 2800.65
+Average feature 5: 1639.16
+...
+This cluster has relatively low values for feature 1 and high values for features 3, 4, and 5. It also has high values for features 13 and 16.
+Cluster 3:
+
+Average feature 1: 810.31
+Average feature 2: 0.859
+Average feature 3: 532.41
+Average feature 4: 272.46
+Average feature 5: 260.29
+...
+This cluster has relatively low values for feature 1 and moderate values for features 3, 4, and 5. It also has high values for features 13 and 16.
+
+Principal component analysis
+
+1. Perform a PCA on the dataset.
+
+pca_result <- prcomp(cleaned_data, scale. = TRUE)
+summary(pca_result)
+
+2. Find the number of components to select.
+
+To find the number of principal components to select, we can use scree plot in this case : 
+
+# Scree plot
+plot(summary(pca_result)$importance[2,], type = "b", xlab = "Principal Component", ylab = "Eigenvalue", main = "Scree Plot")
+
+
+After examining the scree plot we identify that the point where the eigenvalues start to level off is around 3. So we will select 3 components
+
+3. Perform now the kmeans clustering on the reduced data.
+- Find the number of clusters using the silhouette method. Is it 3 clusters?
+
+library(cluster)
+library(FactoMineR)
+library(factoextra)
+
+pca_result <- PCA(cleaned_data, scale.unit = TRUE, ncp = 3, graph = FALSE)
+reduced_data <- as.data.frame(pca_result$ind$coord)
+silhouette_nb <- fviz_nbclust(reduced_data, kmeans, method = "silhouette")
+print(silhouette_nb)
+
+- Plot the obtained clusters with the features of customers.
+
+library(cluster)
+library(FactoMineR)
+library(factoextra)
+
+kmeans_res <- kmeans(reduced_data, centers = 3, nstart = 25)
+
+fviz_cluster(kmeans_res, data = reduced_data, geom = "point",
+             ellipse.type = "convex", ellipse.level = 0.68,
+             main = "Clusters of Customers")
+
+
+- Define the features of each cluster.
+
+cluster_centroids <- kmeans_res$centers
+cluster_centroids_df <- as.data.frame(cluster_centroids)
+colnames(cluster_centroids_df) <- colnames(reduced_data)
+print(cluster_centroids_df)
+
